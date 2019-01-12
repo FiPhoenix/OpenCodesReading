@@ -116,6 +116,8 @@ long long train_words = 0, word_count_actual = 0, iter = 5, file_size = 0, class
  * ======== starting_alpha ========
  *
  * ======== sample ========
+ * 控制降采样力度,小于sample意味着将会保留;
+ * 设置sample为0,不进行subsampling过程;
  * This parameter controls the subsampling of frequent words.
  * Smaller values of 'sample' mean words are less likely to be kept.
  * Set 'sample' to 0 to disable subsampling.
@@ -936,8 +938,11 @@ void *TrainModelThread(void *id) {
          * 对高频词进行降采样 subsamping for frequent words
          * 
          */
-        if (sample > 0) {
-          // Calculate the probability of keeping 'word'.计算词word保存的概率
+        if (sample > 0) {//是否对高频词进行subsampling过程
+          // Calculate the probability of keeping 'word'.
+          // 计算词word保存的概率ran: ran = \sqrt(sample/f(w)) + sample/f(w);f(w)表示w的归一化频率;sample,降采样力度;
+          // 生成随机数大于ran,则跳过这个高频词
+          // 这里的ran计算公式 = (sqrt(f(w)/sample)+1)*(sample/f(w))
           real ran = (sqrt(vocab[word].cn / (sample * train_words)) + 1) * (sample * train_words) / vocab[word].cn;
           
           // Generate a random number.
@@ -951,7 +956,7 @@ void *TrainModelThread(void *id) {
           // random number. Dividing this by 65536 (2^16) gives us a fraction
           // between 0 and 1. So the code is just generating a random fraction.
           // 随机数归一化,然后和保存概率ran比较,判断词word是否应该删除
-          if (ran < (next_random & 0xFFFF) / (real)65536) continue;
+          if (ran < (next_random & 0xFFFF) / (real)65536) continue;//大于保存概率,跳过
         }
         
         // If we kept the word, add it to the sentence.
